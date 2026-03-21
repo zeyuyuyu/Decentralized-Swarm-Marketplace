@@ -1,32 +1,42 @@
-import os
-import hashlib
-import json
+import time
+import random
 import requests
+from typing import List
 
-class CodeScanner:
-    def __init__(self, swarm_endpoint):
-        self.swarm_endpoint = swarm_endpoint
+class ScrapingSwarm:
+    def __init__(self, urls: List[str], num_agents: int = 10, delay: float = 0.1):
+        self.urls = urls
+        self.num_agents = num_agents
+        self.delay = delay
+        self.agents = [ScrapeAgent(self.urls, self.delay) for _ in range(self.num_agents)]
 
-    def scan_directory(self, directory):
-        """Recursively scan a directory for files and submit them to the swarm for analysis."""
-        file_hashes = {}
-        for root, dirs, files in os.walk(directory):
-            for file in files:
-                file_path = os.path.join(root, file)
-                with open(file_path, 'rb') as f:
-                    file_hash = hashlib.sha256(f.read()).hexdigest()
-                    file_hashes[file_path] = file_hash
-                    self.submit_file_to_swarm(file_path, file_hash)
-        return file_hashes
+    def start(self):
+        for agent in self.agents:
+            agent.start()
 
-    def submit_file_to_swarm(self, file_path, file_hash):
-        """Submit a file to the decentralized swarm for analysis."""
-        data = {
-            'file_path': file_path,
-            'file_hash': file_hash
-        }
-        response = requests.post(self.swarm_endpoint + '/scan', json=data)
-        if response.status_code == 200:
-            print(f'Submitted {file_path} to the swarm for analysis.')
-        else:
-            print(f'Failed to submit {file_path} to the swarm. Error: {response.text}')
+    def stop(self):
+        for agent in self.agents:
+            agent.stop()
+
+class ScrapeAgent:
+    def __init__(self, urls: List[str], delay: float):
+        self.urls = urls
+        self.delay = delay
+        self.running = False
+
+    def start(self):
+        self.running = True
+        while self.running:
+            self.scrape()
+            time.sleep(self.delay)
+
+    def stop(self):
+        self.running = False
+
+    def scrape(self):
+        url = random.choice(self.urls)
+        try:
+            response = requests.get(url)
+            print(f"Scraped data from: {url}")
+        except:
+            print(f"Failed to scrape data from: {url}")
