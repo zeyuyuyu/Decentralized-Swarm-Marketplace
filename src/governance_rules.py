@@ -1,104 +1,37 @@
-from typing import Dict, List, Any, Callable
-from dataclasses import dataclass
+import os
 import json
-import logging
 
-@dataclass
-class Rule:
-    name: str
-    condition: Callable
-    action: Callable
-    priority: int
-    metadata: Dict[str, Any]
+class GovernanceRules:
+    def __init__(self, config_file='governance_config.json'):
+        self.config_file = config_file
+        self.load_config()
 
-class GovernanceEngine:
-    def __init__(self):
-        self.rules: List[Rule] = []
-        self.logger = logging.getLogger(__name__)
+    def load_config(self):
+        try:
+            with open(self.config_file, 'r') as f:
+                self.config = json.load(f)
+        except FileNotFoundError:
+            self.config = {
+                'min_stake': 1000,
+                'voting_period': 604800,  # 1 week in seconds
+                'approval_threshold': 0.6
+            }
+            self.save_config()
 
-    def add_rule(self, rule: Rule) -> None:
-        """Add a new governance rule to the engine."""
-        self.rules.append(rule)
-        self.rules.sort(key=lambda x: x.priority, reverse=True)
+    def save_config(self):
+        with open(self.config_file, 'w') as f:
+            json.dump(self.config, f, indent=2)
 
-    def evaluate_rules(self, context: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Evaluate all rules against the given context."""
-        results = []
-        for rule in self.rules:
-            try:
-                if rule.condition(context):
-                    action_result = rule.action(context)
-                    results.append({
-                        'rule': rule.name,
-                        'status': 'executed',
-                        'result': action_result
-                    })
-                else:
-                    results.append({
-                        'rule': rule.name,
-                        'status': 'skipped',
-                        'result': None
-                    })
-            except Exception as e:
-                self.logger.error(f'Error executing rule {rule.name}: {str(e)}')
-                results.append({
-                    'rule': rule.name,
-                    'status': 'error',
-                    'error': str(e)
-                })
-        return results
+    def validate_proposal(self, proposal):
+        # Check if proposal meets governance requirements
+        if proposal['stake'] < self.config['min_stake']:
+            return False
+        if proposal['voting_period'] < self.config['voting_period']:
+            return False
+        return True
 
-    def export_rules(self, filepath: str) -> None:
-        """Export all rules to a JSON file."""
-        rules_data = [{
-            'name': rule.name,
-            'priority': rule.priority,
-            'metadata': rule.metadata
-        } for rule in self.rules]
-        
-        with open(filepath, 'w') as f:
-            json.dump(rules_data, f, indent=2)
-
-    @staticmethod
-    def create_default_rules() -> List[Rule]:
-        """Create a set of default governance rules."""
-        return [
-            Rule(
-                name='resource_limit_check',
-                condition=lambda ctx: ctx.get('resource_usage', 0) > ctx.get('resource_limit', 100),
-                action=lambda ctx: {'action': 'scale_down', 'reason': 'resource limit exceeded'},
-                priority=100,
-                metadata={'description': 'Checks if resource usage exceeds limits'}
-            ),
-            Rule(
-                name='health_check',
-                condition=lambda ctx: ctx.get('health_status') == 'degraded',
-                action=lambda ctx: {'action': 'restart_service', 'reason': 'health check failed'},
-                priority=90,
-                metadata={'description': 'Monitors service health status'}
-            ),
-            Rule(
-                name='performance_optimization',
-                condition=lambda ctx: ctx.get('response_time', 0) > ctx.get('sla_threshold', 1000),
-                action=lambda ctx: {'action': 'optimize_performance', 'reason': 'SLA breach'},
-                priority=80,
-                metadata={'description': 'Ensures performance meets SLA requirements'}
-            )
-        ]
-
-    def load_rules_from_file(self, filepath: str) -> None:
-        """Load rules from a JSON configuration file."""
-        with open(filepath, 'r') as f:
-            rules_data = json.load(f)
-            
-        for rule_data in rules_data:
-            # Custom rule loading logic here
-            # This would need to be implemented based on how rules are serialized
-            pass
-
-def create_governance_engine() -> GovernanceEngine:
-    """Factory function to create and initialize a governance engine."""
-    engine = GovernanceEngine()
-    for rule in GovernanceEngine.create_default_rules():
-        engine.add_rule(rule)
-    return engine
+    def tally_votes(self, proposal):
+        # Tally votes and check if proposal is approved
+        total_votes = sum(proposal['votes'].values())
+        approve_votes = sum(vote for vote in proposal['votes'].values() if vote)
+        return approve_votes / total_votes >= self.config['approval_threshold']
