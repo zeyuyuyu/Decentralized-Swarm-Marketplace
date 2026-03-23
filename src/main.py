@@ -1,70 +1,42 @@
-import asyncio
-import aiohttp
-import hashlib
-import json
 import os
+import json
+import hashlib
+from typing import List, Tuple
+from .governance_rules import GovernanceRules
 
-class DistributedWebCrawler:
-    def __init__(self, start_urls, worker_count=10, index_dir='./index'):
-        self.start_urls = start_urls
-        self.worker_count = worker_count
-        self.index_dir = index_dir
-        self.url_queue = asyncio.Queue()
-        self.processed_urls = set()
-        self.index = {}
+class DecentralizedSwarmMarketplace:
+    def __init__(self):
+        self.governance_rules = GovernanceRules()
+        self.registered_users: List[str] = []
+        self.proposals: List[Proposal] = []
+        self.vote_registry: Dict[Tuple[str, int], bool] = {}
 
-    async def crawl(self):
-        await self.enqueue_start_urls()
-        await asyncio.gather(*[self.worker() for _ in range(self.worker_count)])
-        self.save_index()
+    def register_user(self, user_id: str):
+        if user_id not in self.registered_users:
+            self.registered_users.append(user_id)
 
-    async def enqueue_start_urls(self):
-        for url in self.start_urls:
-            await self.url_queue.put(url)
+    def submit_proposal(self, proposer_id: str, proposal_details: str) -> int:
+        proposal = Proposal(proposer_id, proposal_details)
+        self.proposals.append(proposal)
+        return len(self.proposals) - 1
 
-    async def worker(self):
-        while True:
-            url = await self.url_queue.get()
-            if url in self.processed_urls:
-                self.url_queue.task_done()
-                continue
-            try:
-                page_content = await self.fetch_page(url)
-                self.index_page(url, page_content)
-                self.processed_urls.add(url)
-                await self.enqueue_links(page_content)
-            except Exception as e:
-                print(f'Error processing {url}: {e}')
-            self.url_queue.task_done()
+    def vote_on_proposal(self, voter_id: str, proposal_id: int, vote: bool):
+        if voter_id in self.registered_users:
+            self.vote_registry[(voter_id, proposal_id)] = vote
 
-    async def fetch_page(self, url):
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
-                return await response.text()
+    def tally_votes(self, proposal_id: int) -> bool:
+        yes_votes = 0
+        no_votes = 0
+        for (voter_id, pid), vote in self.vote_registry.items():
+            if pid == proposal_id:
+                if vote:
+                    yes_votes += 1
+                else:
+                    no_votes += 1
+        return yes_votes >= self.governance_rules.min_yes_votes and yes_votes > no_votes
 
-    def index_page(self, url, content):
-        doc_id = hashlib.sha256(url.encode()).hexdigest()
-        self.index[doc_id] = {
-            'url': url,
-            'content': content
-        }
-
-    async def enqueue_links(self, content):
-        links = self.extract_links(content)
-        for link in links:
-            await self.url_queue.put(link)
-
-    def extract_links(self, content):
-        # Implement link extraction logic
-        return []
-
-    def save_index(self):
-        if not os.path.exists(self.index_dir):
-            os.makedirs(self.index_dir)
-        index_file = os.path.join(self.index_dir, 'index.json')
-        with open(index_file, 'w') as f:
-            json.dump(self.index, f)
-
-if __name__ == '__main__':
-    crawler = DistributedWebCrawler(['https://example.com', 'https://another-example.com'])
-    asyncio.run(crawler.crawl())
+class Proposal:
+    def __init__(self, proposer_id: str, details: str):
+        self.proposer_id = proposer_id
+        self.details = details
+        self.id = hashlib.sha256(f'{proposer_id}:{details}'.encode()).hexdigest()
