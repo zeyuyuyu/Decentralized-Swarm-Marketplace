@@ -1,42 +1,89 @@
-import os
+import asyncio
+import websockets
 import json
-import hashlib
-from typing import List, Tuple
-from .governance_rules import GovernanceRules
+import git
+import os
+from typing import Set, Dict
 
-class DecentralizedSwarmMarketplace:
+class GitSignalServer:
     def __init__(self):
-        self.governance_rules = GovernanceRules()
-        self.registered_users: List[str] = []
-        self.proposals: List[Proposal] = []
-        self.vote_registry: Dict[Tuple[str, int], bool] = {}
+        self.clients: Set[websockets.WebSocketServerProtocol] = set()
+        self.repos: Dict[str, git.Repo] = {}
+        
+    async def register(self, websocket: websockets.WebSocketServerProtocol):
+        self.clients.add(websocket)
+        try:
+            async for message in websocket:
+                await self.handle_message(websocket, message)
+        finally:
+            self.clients.remove(websocket)
 
-    def register_user(self, user_id: str):
-        if user_id not in self.registered_users:
-            self.registered_users.append(user_id)
+    async def handle_message(self, websocket: websockets.WebSocketServerProtocol, message: str):
+        data = json.loads(message)
+        if data['type'] == 'watch_repo':
+            repo_path = data['repo_path']
+            if repo_path not in self.repos:
+                try:
+                    repo = git.Repo(repo_path)
+                    self.repos[repo_path] = repo
+                    asyncio.create_task(self.monitor_repo(repo_path))
+                    await websocket.send(json.dumps({
+                        'type': 'success',
+                        'message': f'Now watching {repo_path}'
+                    }))
+                except git.InvalidGitRepositoryError:
+                    await websocket.send(json.dumps({
+                        'type': 'error',
+                        'message': f'Invalid git repository: {repo_path}'
+                    }))
 
-    def submit_proposal(self, proposer_id: str, proposal_details: str) -> int:
-        proposal = Proposal(proposer_id, proposal_details)
-        self.proposals.append(proposal)
-        return len(self.proposals) - 1
+    async def broadcast(self, message: dict):
+        if self.clients:
+            await asyncio.wait([
+                client.send(json.dumps(message))
+                for client in self.clients
+            ])
 
-    def vote_on_proposal(self, voter_id: str, proposal_id: int, vote: bool):
-        if voter_id in self.registered_users:
-            self.vote_registry[(voter_id, proposal_id)] = vote
+    async def monitor_repo(self, repo_path: str):
+        repo = self.repos[repo_path]
+        last_commit = repo.head.commit
+        
+        while True:
+            try:
+                repo.remotes.origin.fetch()
+                current_commit = repo.head.commit
+                
+                if current_commit != last_commit:
+                    changes = {
+                        'files_changed': list(current_commit.stats.files.keys()),
+                        'insertions': current_commit.stats.total['insertions'],
+                        'deletions': current_commit.stats.total['deletions'],
+                        'message': current_commit.message,
+                        'author': current_commit.author.name,
+                        'hash': current_commit.hexsha
+                    }
+                    
+                    await self.broadcast({
+                        'type': 'repo_update',
+                        'repo_path': repo_path,
+                        'changes': changes
+                    })
+                    
+                    last_commit = current_commit
+                    
+            except Exception as e:
+                await self.broadcast({
+                    'type': 'error',
+                    'repo_path': repo_path,
+                    'message': str(e)
+                })
+                
+            await asyncio.sleep(10)
 
-    def tally_votes(self, proposal_id: int) -> bool:
-        yes_votes = 0
-        no_votes = 0
-        for (voter_id, pid), vote in self.vote_registry.items():
-            if pid == proposal_id:
-                if vote:
-                    yes_votes += 1
-                else:
-                    no_votes += 1
-        return yes_votes >= self.governance_rules.min_yes_votes and yes_votes > no_votes
+async def main():
+    server = GitSignalServer()
+    async with websockets.serve(server.register, 'localhost', 8765):
+        await asyncio.Future()  # run forever
 
-class Proposal:
-    def __init__(self, proposer_id: str, details: str):
-        self.proposer_id = proposer_id
-        self.details = details
-        self.id = hashlib.sha256(f'{proposer_id}:{details}'.encode()).hexdigest()
+if __name__ == '__main__':
+    asyncio.run(main())
