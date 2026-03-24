@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitGuardian - Level Up Your Code Security! 🚀</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+</head>
+<body class="bg-gradient-to-r from-gray-900 to-blue-900 text-white">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Gamified Header with Level System -->
+        <div class="flex justify-between items-center mb-8">
+            <div class="flex items-center space-x-4">
+                <div class="relative">
+                    <img id="userAvatar" src="https://api.dicebear.com/6.x/pixel-art/svg?seed=GitGuardian" class="w-16 h-16 rounded-full border-4 border-yellow-400 animate__animated animate__pulse animate__infinite">
+                    <span class="absolute -top-2 -right-2 bg-yellow-400 text-black font-bold rounded-full w-8 h-8 flex items-center justify-center" id="userLevel">1</span>
+                </div>
+                <div>
+                    <h2 class="text-2xl font-bold">Security Master</h2>
+                    <div class="w-48 h-3 bg-gray-700 rounded-full mt-2">
+                        <div id="expBar" class="h-full bg-green-400 rounded-full" style="width: 45%"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="text-right">
+                <div class="text-yellow-400 text-xl font-bold">🏆 Trophy Points: <span id="trophyPoints">150</span></div>
+                <div class="text-blue-400">Daily Streak: 🔥 <span id="streak">3</span> days</div>
+            </div>
+        </div>
+
+        <!-- Achievement Showcase -->
+        <div class="bg-gray-800 rounded-lg p-6 mb-8 animate__animated animate__fadeIn">
+            <h3 class="text-xl font-bold mb-4">Recent Achievements 🎉</h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="achievements">
+                <div class="achievement-card bg-gradient-to-r from-purple-600 to-pink-600 p-4 rounded-lg text-center transform hover:scale-105 transition-transform cursor-pointer">
+                    <div class="text-3xl mb-2">🛡️</div>
+                    <div class="font-bold">Security Novice</div>
+                    <div class="text-sm opacity-75">Found first vulnerability</div>
+                </div>
+                <!-- More achievement cards here -->
+            </div>
+        </div>
+
+        <!-- Main Scanner Interface -->
+        <div class="bg-gray-800 rounded-lg p-6 mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <h1 class="text-3xl font-bold">GitGuardian Scanner</h1>
+                <button onclick="shareResults()" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg flex items-center">
+                    <span class="mr-2">Share Results</span> 🚀
+                </button>
+            </div>
+            <div class="relative">
+                <input type="text" id="repoUrl" placeholder="Enter GitHub Repository URL" class="w-full bg-gray-700 p-4 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none">
+                <button onclick="scanRepo()" class="absolute right-4 top-1/2 transform -translate-y-1/2 bg-green-500 hover:bg-green-600 px-6 py-2 rounded-lg">
+                    Scan Now 🔍
+                </button>
+            </div>
+        </div>
+
+        <!-- Real-time Leaderboard -->
+        <div class="bg-gray-800 rounded-lg p-6">
+            <h3 class="text-xl font-bold mb-4">Top Security Champions 👑</h3>
+            <div class="space-y-4" id="leaderboard">
+                <!-- Leaderboard entries dynamically populated -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Achievement Popup -->
+    <div id="achievementPopup" class="fixed bottom-4 right-4 hidden animate__animated animate__fadeInUp">
+        <div class="bg-gradient-to-r from-yellow-400 to-yellow-600 text-black p-4 rounded-lg shadow-lg">
+            <div class="text-xl font-bold">🎉 New Achievement!</div>
+            <div id="achievementText">Security Master Level Up!</div>
+        </div>
+    </div>
+
+    <script>
+        // Gamification Logic
+        let exp = 0;
+        let level = 1;
+        let streak = 3;
+
+        function scanRepo() {
+            // Simulate scanning
+            showAchievement('Scanner Pro', 'Completed 5 scans today!');
+            updateExp(50);
+        }
+
+        function updateExp(amount) {
+            exp += amount;
+            if (exp >= 100) {
+                levelUp();
+                exp = 0;
+            }
+            document.getElementById('expBar').style.width = exp + '%';
+        }
+
+        function levelUp() {
+            level++;
+            document.getElementById('userLevel').textContent = level;
+            showAchievement('Level Up!', 'You reached level ' + level + '! 🎉');
+        }
+
+        function showAchievement(title, text) {
+            const popup = document.getElementById('achievementPopup');
+            document.getElementById('achievementText').textContent = text;
+            popup.classList.remove('hidden');
+            setTimeout(() => {
+                popup.classList.add('animate__fadeOutDown');
+                setTimeout(() => {
+                    popup.classList.add('hidden');
+                    popup.classList.remove('animate__fadeOutDown');
+                }, 1000);
+            }, 3000);
+        }
+
+        function shareResults() {
+            // Social sharing implementation
+            const text = `🛡️ Just reached Level ${level} on GitGuardian! Protecting my code like a boss! 💪 #CodeSecurity #GitGuardian`;
+            window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`);
+        }
+
+        // Initialize leaderboard
+        const leaderboardData = [
+            { name: 'CyberNinja', points: 2500, avatar: 'https://api.dicebear.com/6.x/pixel-art/svg?seed=ninja' },
+            { name: 'CodeGuardian', points: 2350, avatar: 'https://api.dicebear.com/6.x/pixel-art/svg?seed=guardian' },
+            { name: 'SecurityPro', points: 2100, avatar: 'https://api.dicebear.com/6.x/pixel-art/svg?seed=pro' }
+        ];
+
+        function updateLeaderboard() {
+            const leaderboard = document.getElementById('leaderboard');
+            leaderboard.innerHTML = leaderboardData.map((user, index) => `
+                <div class="flex items-center space-x-4 bg-gray-700 p-4 rounded-lg">
+                    <div class="text-2xl">${index === 0 ? '👑' : (index + 1)}</div>
+                    <img src="${user.avatar}" class="w-10 h-10 rounded-full">
+                    <div class="flex-grow">
+                        <div class="font-bold">${user.name}</div>
+                        <div class="text-sm text-gray-400">${user.points} points</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        updateLeaderboard();
+    </script>
+</body>
+</html>
